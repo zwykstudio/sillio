@@ -1,0 +1,2 @@
+/* Texte affiché par macOS en demandant l’autorisation audio. */
+"NSAudioCaptureUsageDescription" = "Sillio records the sound played by your Mac to a file.";

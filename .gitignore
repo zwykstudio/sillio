@@ -1,0 +1,10 @@
+# Notes privées, jamais publiées
+private/
+CLAUDE.md
+
+# Produits de compilation
+/sillio
+/Sillio.app/
+/dist/
+
+.DS_Store

@@ -1,0 +1,78 @@
+# Fabrique le DMG sur un Mac de GitHub et le publie.
+#
+#   git tag v1.1 && git push origin v1.1   → release « Sillio 1.1 » avec le DMG
+#   Actions › Release › Run workflow       → DMG d'essai en artefact, sans release
+
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  dmg:
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Version
+        id: version
+        run: |
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            version="${GITHUB_REF_NAME#v}"
+          else
+            version="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' App/Info.plist)-dev"
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Build the DMG
+        env:
+          # Le Finder d'une machine de CI peut refuser de ranger la fenêtre : on livre quand même.
+          SILLIO_LAYOUT_OPTIONAL: "1"
+        run: ./package.sh "${{ steps.version.outputs.version }}"
+
+      - name: Check the app
+        run: |
+          dmg="dist/Sillio-${{ steps.version.outputs.version }}.dmg"
+          hdiutil verify "$dmg"
+          mount=$(mktemp -d)
+          hdiutil attach "$dmg" -readonly -nobrowse -mountpoint "$mount" -quiet
+          lipo -archs "$mount/Sillio.app/Contents/MacOS/Sillio"
+          codesign --verify --deep --strict "$mount/Sillio.app"
+          hdiutil detach "$mount" -quiet
+
+      - name: Upload the test build
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Sillio-${{ steps.version.outputs.version }}
+          path: dist/*.dmg
+
+      - name: Publish the release
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="${{ steps.version.outputs.version }}"
+          dmg="dist/Sillio-$version.dmg"
+          sum=$(shasum -a 256 "$dmg" | cut -d' ' -f1)
+          cat > notes.md <<NOTES
+          ### Install
+
+          1. Download **Sillio-$version.dmg** below, open it and drag Sillio to Applications.
+          2. First launch: right-click Sillio › **Open**, then confirm (the app isn't notarized yet).
+          3. Allow system audio recording when macOS asks.
+
+          Requires macOS 14.2 or later, Apple silicon or Intel.
+
+          SHA-256 \`$sum\`
+          NOTES
+          gh release create "$GITHUB_REF_NAME" "$dmg" \
+            --title "Sillio $version" \
+            --notes-file notes.md \
+            --generate-notes

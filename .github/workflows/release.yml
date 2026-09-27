@@ -15,7 +15,9 @@ permissions:
 
 jobs:
   dmg:
-    runs-on: macos-15
+    # macOS 26 : son SDK est nécessaire (isProcessRestoreEnabled). Avec un SDK plus ancien, le code
+    # compile, mais sans cette fonction.
+    runs-on: macos-26
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4

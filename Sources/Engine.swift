@@ -339,9 +339,13 @@ final class Capture {
                 }
             }
             description = CATapDescription(stereoMixdownOfProcesses: matches.map(\.objectID))
+            // API du SDK de macOS 26 (Swift 6.2, Xcode 26) : absente des SDK plus anciens, où cette
+            // ligne est simplement omise pour que le code compile quand même.
+            #if compiler(>=6.2)
             if #available(macOS 26.0, *) {
                 description.isProcessRestoreEnabled = true  // suit l'app si son process audio redémarre
             }
+            #endif
         } else {
             description = CATapDescription(stereoGlobalTapButExcludeProcesses: [])
         }
